@@ -1,0 +1,21 @@
+{
+  "id": "{B098DDCF-F8DC-4232-A3B4-CF2BB69CFB6B}",
+  "name": "ArtNet KNX Konverter",
+  "type": 3,
+  "vendor": "FACE GmbH",
+  "aliases": [
+    "Art-Net KNX Konverter",
+    "DMX KNX Konverter",
+    "Art-Net Empfänger",
+    "DMX nach KNX"
+  ],
+  "parentRequirements": [
+    "{C8792760-65CF-4C53-B5C7-A30FCC84FEFE}"
+  ],
+  "childRequirements": [],
+  "implemented": [
+    "{7A1272A4-CBDB-46EF-BFC6-DCF4A53D2FC7}",
+    "{018EF6B5-AB94-40C6-AA53-46943E824ACF}"
+  ],
+  "prefix": "ANKNX"
+}

@@ -1,0 +1,297 @@
+{
+  "elements": [
+    {
+      "type": "Label",
+      "caption": "Empfängt Art-Net (ArtDmx) und legt einzelne DMX-Kanäle als Dimmwert auf KNX-Instanzen. Der UDP-Socket darüber wird automatisch passend eingestellt."
+    },
+    {
+      "type": "ExpansionPanel",
+      "caption": "Empfang",
+      "expanded": true,
+      "items": [
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "ValidationTextBox",
+              "name": "BindIP",
+              "caption": "Netzwerkkarte (leer = alle)",
+              "width": "240px"
+            },
+            {
+              "type": "NumberSpinner",
+              "name": "BindPort",
+              "caption": "UDP-Port",
+              "minimum": 1,
+              "maximum": 65535,
+              "width": "120px"
+            }
+          ]
+        },
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "NumberSpinner",
+              "name": "PortAddress",
+              "caption": "Universum (Port-Address)",
+              "minimum": 0,
+              "maximum": 32767,
+              "width": "180px"
+            },
+            {
+              "type": "ValidationTextBox",
+              "name": "SourceIP",
+              "caption": "Nur von dieser IP (leer = beliebig)",
+              "width": "240px"
+            }
+          ]
+        },
+        {
+          "type": "Label",
+          "caption": "Port-Address = Net × 256 + Subnet × 16 + Universum. Ein Pult, das schlicht „Universum 1“ anzeigt, sendet meist auf 0. Mehrere Universen: je eine Instanz anlegen, alle dürfen sich denselben UDP-Socket teilen."
+        }
+      ]
+    },
+    {
+      "type": "List",
+      "name": "Channels",
+      "caption": "Kanalzuordnung",
+      "rowCount": 8,
+      "add": true,
+      "delete": true,
+      "sort": {
+        "column": "Channel",
+        "direction": "ascending"
+      },
+      "columns": [
+        {
+          "name": "Active",
+          "caption": "Aktiv",
+          "width": "60px",
+          "add": true,
+          "edit": {
+            "type": "CheckBox"
+          }
+        },
+        {
+          "name": "Channel",
+          "caption": "DMX-Kanal",
+          "width": "100px",
+          "add": 1,
+          "edit": {
+            "type": "NumberSpinner",
+            "minimum": 1,
+            "maximum": 512
+          }
+        },
+        {
+          "name": "Name",
+          "caption": "Bezeichnung",
+          "width": "180px",
+          "add": "",
+          "edit": {
+            "type": "ValidationTextBox"
+          }
+        },
+        {
+          "name": "TargetID",
+          "caption": "KNX-Instanz (Ziel)",
+          "width": "260px",
+          "add": 0,
+          "edit": {
+            "type": "SelectInstance"
+          }
+        },
+        {
+          "name": "Scale",
+          "caption": "Wertebereich",
+          "width": "160px",
+          "add": 0,
+          "edit": {
+            "type": "Select",
+            "options": [
+              {
+                "caption": "Prozent 0–100 (DPT 5.001)",
+                "value": 0
+              },
+              {
+                "caption": "Roh 0–255 (DPT 5.010)",
+                "value": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "MinPercent",
+          "caption": "Min %",
+          "width": "80px",
+          "add": 0,
+          "edit": {
+            "type": "NumberSpinner",
+            "minimum": 0,
+            "maximum": 100,
+            "suffix": " %"
+          }
+        },
+        {
+          "name": "MaxPercent",
+          "caption": "Max %",
+          "width": "80px",
+          "add": 100,
+          "edit": {
+            "type": "NumberSpinner",
+            "minimum": 0,
+            "maximum": 100,
+            "suffix": " %"
+          }
+        },
+        {
+          "name": "Invert",
+          "caption": "Invertiert",
+          "width": "90px",
+          "add": false,
+          "edit": {
+            "type": "CheckBox"
+          }
+        }
+      ]
+    },
+    {
+      "type": "Label",
+      "caption": "Ziel ist die KNX-DPT-Instanz des Dimmwerts (nicht die Status-GA). DMX 0 schaltet immer aus; alles darüber wird in den Bereich Min…Max gespreizt – so berücksichtigt man die Mindesthelligkeit eines Aktors, ohne dass der Fader unten nicht mehr ausschaltet."
+    },
+    {
+      "type": "ExpansionPanel",
+      "caption": "Bus-Schonung",
+      "expanded": false,
+      "items": [
+        {
+          "type": "Label",
+          "caption": "KNX-TP verträgt dauerhaft rund 10 Telegramme/s, dann reagieren Taster spürbar träge. Art-Net liefert bis zu 44 Frames/s – die Bremse hier ist kein Komfort, sondern Voraussetzung."
+        },
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "NumberSpinner",
+              "name": "MaxTelegramsPerSecond",
+              "caption": "Max. Telegramme/s",
+              "minimum": 1,
+              "maximum": 50,
+              "width": "170px"
+            },
+            {
+              "type": "NumberSpinner",
+              "name": "FlushIntervalMs",
+              "caption": "Sendetakt",
+              "minimum": 50,
+              "maximum": 2000,
+              "suffix": " ms",
+              "width": "150px"
+            }
+          ]
+        },
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "NumberSpinner",
+              "name": "DeadbandPercent",
+              "caption": "Totband",
+              "minimum": 0,
+              "maximum": 50,
+              "suffix": " %",
+              "width": "150px"
+            },
+            {
+              "type": "NumberSpinner",
+              "name": "SettleMs",
+              "caption": "Beruhigung (Endwert nachziehen)",
+              "minimum": 0,
+              "maximum": 10000,
+              "suffix": " ms",
+              "width": "260px"
+            }
+          ]
+        },
+        {
+          "type": "Label",
+          "caption": "Änderungen unterhalb des Totbands werden unterdrückt – aber sobald ein Kanal so lange ruhig steht wie die Beruhigungszeit, geht der exakte Endwert einmal raus. Nichts bleibt auf einem Zwischenwert stehen."
+        }
+      ]
+    },
+    {
+      "type": "ExpansionPanel",
+      "caption": "Signalausfall",
+      "expanded": false,
+      "items": [
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "NumberSpinner",
+              "name": "TimeoutMs",
+              "caption": "Kein Paket länger als",
+              "minimum": 200,
+              "maximum": 60000,
+              "suffix": " ms",
+              "width": "200px"
+            },
+            {
+              "type": "Select",
+              "name": "TimeoutAction",
+              "caption": "Dann",
+              "width": "220px",
+              "options": [
+                {
+                  "caption": "Letzten Wert halten",
+                  "value": 0
+                },
+                {
+                  "caption": "Alles auf 0 fahren",
+                  "value": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "Label",
+          "caption": "„Halten“ ist der sichere Standard: fällt das Pult aus, bleibt das Licht so, wie es war. „Auf 0“ nur wählen, wenn ausgeschaltetes Licht wirklich das gewünschte Ergebnis ist."
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "RowLayout",
+      "items": [
+        {
+          "type": "Button",
+          "caption": "Universum anzeigen",
+          "onClick": "ANKNX_DumpUniverse($id);"
+        },
+        {
+          "type": "Button",
+          "caption": "Alles neu senden",
+          "onClick": "ANKNX_ResendAll($id);"
+        }
+      ]
+    },
+    {
+      "type": "Label",
+      "caption": "„Universum anzeigen“ zeigt den zuletzt empfangenen Frame – zum Prüfen, ob Pakete ankommen und welcher Fader auf welchem Kanal liegt, noch bevor KNX verdrahtet ist."
+    },
+    {
+      "type": "TestCenter"
+    }
+  ],
+  "status": [
+    {
+      "code": 104,
+      "icon": "inactive",
+      "caption": "Keine aktive Kanalzuordnung"
+    }
+  ]
+}

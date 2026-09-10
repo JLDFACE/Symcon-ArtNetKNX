@@ -1,0 +1,12 @@
+{
+  "id": "{3B769906-9E9D-436D-84AC-2CDE4492FA9D}",
+  "author": "FACE GmbH",
+  "name": "Art-Net KNX Konverter",
+  "url": "https://github.com/JLDFACE/Symcon-ArtNetKNX",
+  "compatibility": {
+    "version": "7.0"
+  },
+  "version": "0.1",
+  "build": 1,
+  "date": 20260910
+}

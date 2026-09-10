@@ -1,0 +1,3 @@
+# Alles als Text behandeln und im Repo immer mit LF ablegen.
+# Verhindert, dass OneDrive/Editoren den Baum auf CRLF umkippen.
+* text=auto eol=lf
