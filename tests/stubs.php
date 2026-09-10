@@ -25,6 +25,8 @@ final class IPSKernel
     public static $actions = [];
     /** @var string[] */
     public static $log = [];
+    /** @var int[] Variablen, die den Wert NICHT annehmen (totes Gateway simulieren) */
+    public static $deaf = [];
     public static $nextID = 1000;
 
     public static function reset(): void
@@ -33,6 +35,7 @@ final class IPSKernel
         self::$values  = [];
         self::$actions = [];
         self::$log     = [];
+        self::$deaf    = [];
         self::$nextID  = 1000;
     }
 
@@ -95,8 +98,13 @@ function SetValue(int $id, $v): void { IPSKernel::$values[$id] = $v; }
 
 function RequestAction(int $id, $value): void
 {
+    // Ein "taubes" Ziel bekommt das Telegramm, übernimmt den Wert aber nicht –
+    // genau das tut eine KNX-Variable, deren Gateway gerade weg ist.
+    IPSKernel::$actions[] = [$id, $value];
+    if (in_array($id, IPSKernel::$deaf, true)) {
+        return;
+    }
     IPSKernel::$values[$id] = $value;
-    IPSKernel::$actions[]   = [$id, $value];
 }
 
 // Profile – für den Test bedeutungslos, müssen nur existieren

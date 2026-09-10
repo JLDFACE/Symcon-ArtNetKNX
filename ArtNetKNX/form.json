@@ -15,7 +15,7 @@
             {
               "type": "ValidationTextBox",
               "name": "BindIP",
-              "caption": "Netzwerkkarte (leer = alle)",
+              "caption": "Bindeadresse (0.0.0.0 = alle Karten)",
               "width": "240px"
             },
             {
@@ -50,6 +50,10 @@
         {
           "type": "Label",
           "caption": "Port-Address = Net × 256 + Subnet × 16 + Universum. Ein Pult, das schlicht „Universum 1“ anzeigt, sendet meist auf 0. Mehrere Universen: je eine Instanz anlegen, alle dürfen sich denselben UDP-Socket teilen."
+        },
+        {
+          "type": "Label",
+          "caption": "Bindeadresse auf 0.0.0.0 stehen lassen. Ein Socket, der auf eine konkrete Netzwerkkarte gebunden ist, bekommt unter Linux keine Broadcasts – und genau als Broadcast senden Pulte ihr Art-Net. Ein leeres Feld lehnt der UDP-Socket ab (Status 200)."
         }
       ]
     },
@@ -270,7 +274,7 @@
         {
           "type": "Button",
           "caption": "Universum anzeigen",
-          "onClick": "ANKNX_DumpUniverse($id);"
+          "onClick": "echo ANKNX_DumpUniverse($id);"
         },
         {
           "type": "Button",

@@ -58,6 +58,13 @@ class ArtNetKNXKonverter extends IPSModule
     private const LOSS_HOLD = 0;   // letzten Wert stehen lassen
     private const LOSS_ZERO = 1;   // alles auf 0 fahren
 
+    // ─── Ergebnis eines Schreibversuchs ─────────────────────────────
+    private const WRITE_OK         = 0;   // Ziel hat den Wert übernommen
+    private const WRITE_UNVERIFIED = 1;   // Telegramm raus, Wert steht nicht an
+    private const WRITE_NO_TARGET  = 2;   // Ziel existiert nicht (mehr)
+    // So oft wird ein unbestätigter Wert wiederholt, bevor er aufgegeben wird.
+    private const WRITE_RETRIES    = 3;
+
     // ─── Puffergrenzen ──────────────────────────────────────────────
     private const FLUSH_MIN_MS = 50;
     private const FLUSH_MAX_MS = 2000;
@@ -71,7 +78,7 @@ class ArtNetKNXKonverter extends IPSModule
         parent::Create();
 
         // Empfang
-        $this->RegisterPropertyString('BindIP', '');
+        $this->RegisterPropertyString('BindIP', '0.0.0.0');
         $this->RegisterPropertyInteger('BindPort', self::DMX_PORT);
         $this->RegisterPropertyInteger('PortAddress', 0);      // (Net << 8) | SubUni
         $this->RegisterPropertyString('SourceIP', '');          // optionaler Absenderfilter
@@ -373,23 +380,53 @@ class ArtNetKNXKonverter extends IPSModule
             return ($b['prio'] <=> $a['prio']);
         });
 
+        $fails  = json_decode((string) $this->GetBuffer('Fails'), true);
+        $fails  = is_array($fails) ? $fails : [];
+
         $tokens = $this->TakeTokens($now);
         $count  = 0;
         foreach ($queue as $item) {
             if ($tokens < 1.0) {
                 break;
             }
+            $key = (string) $item['i'];
             $row = $map[$item['i']];
-            if ($this->WriteTarget($row, $item['pct'])) {
-                $sent[(string) $item['i']] = $item['pct'];
-                $tokens -= 1.0;
-                $count++;
-            } else {
-                // Ziel weg (Instanz gelöscht) – nicht in Dauerschleife versuchen
-                $sent[(string) $item['i']] = $item['pct'];
+
+            switch ($this->WriteTarget($row, $item['pct'])) {
+                case self::WRITE_OK:
+                    $sent[$key] = $item['pct'];
+                    unset($fails[$key]);
+                    $tokens -= 1.0;
+                    $count++;
+                    break;
+
+                case self::WRITE_NO_TARGET:
+                    // Instanz gelöscht – nicht in Dauerschleife weiterversuchen.
+                    // Kostet kein Telegramm, also auch keinen Token.
+                    $sent[$key] = $item['pct'];
+                    unset($fails[$key]);
+                    break;
+
+                default:   // WRITE_UNVERIFIED
+                    // Das Telegramm ist raus (zählt für die Buslast), der Wert
+                    // steht aber nicht an. Nicht als gesendet verbuchen, sonst
+                    // ginge er still verloren – aber auch nicht ewig wiederholen.
+                    $tokens -= 1.0;
+                    $count++;
+                    $n = (int) ($fails[$key] ?? 0) + 1;
+                    $fails[$key] = $n;
+                    if ($n >= self::WRITE_RETRIES) {
+                        $sent[$key] = $item['pct'];
+                        unset($fails[$key]);
+                        $this->LogMessage(sprintf(
+                            'Art-Net → KNX: Kanal %d (#%d) übernimmt den Wert %d %% nicht – nach %d Versuchen aufgegeben. Gateway erreichbar? Variable beschreibbar?',
+                            (int) $row['ch'], (int) $row['vid'], (int) $item['pct'], self::WRITE_RETRIES), KL_WARNING);
+                    }
+                    break;
             }
         }
 
+        $this->SetBuffer('Fails', json_encode($fails));
         $this->SetBuffer('Tokens', (string) $tokens);
         $this->SetBuffer('Sent', json_encode($sent));
         if ($count > 0) {
@@ -400,12 +437,16 @@ class ArtNetKNXKonverter extends IPSModule
     /**
      * Prozentwert auf die KNX-Variable schreiben. RequestAction löst das
      * Senden auf den Bus aus – SetValue würde nur die Variable beschreiben.
+     *
+     * Danach wird zurückgelesen: RequestAction meldet Fehler nicht zurück, und
+     * ein stillschweigend verworfener Wert wäre sonst für immer weg, weil der
+     * Kanal ab dann als "schon gesendet" gilt.
      */
-    private function WriteTarget(array $row, int $pct): bool
+    private function WriteTarget(array $row, int $pct): int
     {
         $vid = (int) $row['vid'];
         if ($vid <= 0 || !IPS_VariableExists($vid)) {
-            return false;
+            return self::WRITE_NO_TARGET;
         }
 
         $value = ((int) $row['scale'] === self::SCALE_RAW)
@@ -420,8 +461,21 @@ class ArtNetKNXKonverter extends IPSModule
         }
 
         @RequestAction($vid, $cast);
-        $this->SendDebug('KNX', sprintf('Kanal %d → #%d = %s', (int) $row['ch'], $vid, (string) $value), 0);
-        return true;
+        $ok = $this->SameValue(@GetValue($vid), $cast);
+
+        $this->SendDebug('KNX', sprintf('Kanal %d → #%d = %s%s',
+            (int) $row['ch'], $vid, (string) $value, $ok ? '' : '  (steht nicht an!)'), 0);
+
+        return $ok ? self::WRITE_OK : self::WRITE_UNVERIFIED;
+    }
+
+    /** Rücklesevergleich, bei Fließkomma mit der Toleranz eines Prozentschritts. */
+    private function SameValue($actual, $expected): bool
+    {
+        if (is_float($expected) || is_float($actual)) {
+            return abs((float) $actual - (float) $expected) < 0.51;
+        }
+        return $actual === $expected;
     }
 
     /**
@@ -457,6 +511,7 @@ class ArtNetKNXKonverter extends IPSModule
         $this->SetValueIfChanged('Active', $Active);
         $this->SetBuffer('Sent', '[]');
         $this->SetBuffer('Stable', '[]');
+        $this->SetBuffer('Fails', '[]');
     }
 
     /**
@@ -466,6 +521,7 @@ class ArtNetKNXKonverter extends IPSModule
     {
         $this->SetBuffer('Sent', '[]');
         $this->SetBuffer('Stable', '[]');
+        $this->SetBuffer('Fails', '[]');
     }
 
     /**
@@ -495,7 +551,6 @@ class ArtNetKNXKonverter extends IPSModule
                   . "Prüfen: sendet das Pult auf UDP " . $this->ReadPropertyInteger('BindPort')
                   . "? Stimmt die Port-Address (Net × 256 + Subnet × 16 + Universum)?\n"
                   . "Liegt die SymBox im selben Subnetz / kommt Broadcast an?";
-            echo $out;
             return $out;
         }
 
@@ -530,7 +585,6 @@ class ArtNetKNXKonverter extends IPSModule
             $out .= "  (alle Kanäle auf 0)\n";
         }
 
-        echo $out;
         return $out;
     }
 
@@ -641,7 +695,7 @@ class ArtNetKNXKonverter extends IPSModule
 
         $want = [
             'BindPort'           => max(1, (int) $this->ReadPropertyInteger('BindPort')),
-            'BindIP'             => (string) $this->ReadPropertyString('BindIP'),
+            'BindIP'             => $this->BindAddress(),
             'EnableBroadcast'    => true,   // Pulte senden Art-Net oft als Broadcast
             'EnableReuseAddress' => true,   // mehrere Universen teilen sich Port 6454
             'Open'               => true,
@@ -662,6 +716,21 @@ class ArtNetKNXKonverter extends IPSModule
         }
     }
 
+    /**
+     * Bindeadresse für den UDP-Socket.
+     *
+     * Immer 0.0.0.0, solange nichts anderes eingetragen ist: Der Symcon-Socket
+     * lehnt ein leeres Feld ab (Status 200), und – wichtiger – ein Socket, der
+     * auf eine konkrete Kartenadresse gebunden ist, bekommt unter Linux KEINE
+     * Broadcasts. Pulte senden Art-Net aber üblicherweise als Broadcast.
+     * An der SKUZ-Anlage 2026-09-10 genau so nachgemessen.
+     */
+    private function BindAddress(): string
+    {
+        $ip = trim((string) $this->ReadPropertyString('BindIP'));
+        return ($ip === '') ? '0.0.0.0' : $ip;
+    }
+
     // ═══════════════════════════════════════════════════════════════
     //  ZUSTAND & STATISTIK
     // ═══════════════════════════════════════════════════════════════
@@ -670,6 +739,7 @@ class ArtNetKNXKonverter extends IPSModule
     {
         $this->SetBuffer('Sent', '[]');
         $this->SetBuffer('Stable', '[]');
+        $this->SetBuffer('Fails', '[]');
         $this->SetBuffer('Tokens', '0');
         $this->SetBuffer('TokensAt', '0');
         $this->SetBuffer('TxCount', '0');

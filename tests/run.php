@@ -597,6 +597,48 @@ T::group('Buslast über einen echten Fade');
     takeActions();
 }
 
+T::group('Ziel nimmt den Wert nicht an (totes Gateway)');
+{
+    IPSKernel::reset();
+    $knx = IPSKernel::makeKnxInstance();
+    IPSKernel::$deaf[] = IPSKernel::valueVarOf($knx);   // Telegramm ja, Wert nein
+    $m = makeModule([
+        ['Active' => true, 'Channel' => 1, 'TargetID' => $knx, 'Scale' => 0, 'MinPercent' => 0, 'MaxPercent' => 100, 'Invert' => false],
+    ], ['MaxTelegramsPerSecond' => 50, 'DeadbandPercent' => 0]);
+
+    $m->feed(artdmx([1 => 255]));
+    $versuche = 0;
+    for ($i = 0; $i < 6; $i++) {
+        $m->tick(0.1);
+        $m->Flush();
+        $versuche += count(takeActions());
+    }
+    T::eq($versuche, 3, 'unbestätigter Wert wird dreimal wiederholt');
+    T::ok(count(IPSKernel::$log) > 0, 'danach steht eine Warnung im Log');
+
+    $m->tick(1.0);
+    $m->Flush();
+    T::eq(count(takeActions()), 0, 'danach ist Ruhe – kein Dauerfeuer auf den Bus');
+
+    // Ziel wird wieder gesprächig: neuer Wert muss ankommen
+    IPSKernel::$deaf = [];
+    $m->tick(0.1);
+    $m->feed(artdmx([1 => 128], 0, 2));
+    $m->Flush();
+    T::eq(IPSKernel::$values[IPSKernel::valueVarOf($knx)], 50, 'nach der Erholung kommt der nächste Wert an');
+    takeActions();
+}
+
+T::group('Bindeadresse');
+{
+    IPSKernel::reset();
+    $knx = IPSKernel::makeKnxInstance();
+    $m = makeModule([
+        ['Active' => true, 'Channel' => 1, 'TargetID' => $knx, 'Scale' => 0, 'MinPercent' => 0, 'MaxPercent' => 100, 'Invert' => false],
+    ]);
+    T::eq($m->ReadPropertyString('BindIP'), '0.0.0.0', 'Vorgabe ist 0.0.0.0, nicht leer');
+}
+
 // ═══════════════════════════════════════════════════════════════════
 
 echo "\n";
